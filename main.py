@@ -6,7 +6,7 @@ from aiogram.utils.executor import start_webhook
 from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
-from openai import OpenAI  # Новый импорт
+from openai import OpenAI
 import asyncio
 
 # Загрузка переменных из .env
@@ -14,7 +14,7 @@ load_dotenv()
 
 # Настройка токенов и адресов
 API_TOKEN = os.getenv("API_TOKEN")
-WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")  # например, https://sunshine-bot-9ruz.onrender.com
+WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
 WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
@@ -23,8 +23,8 @@ WEBAPP_PORT = int(os.getenv("PORT", 10000))
 
 CHAT_ID = os.getenv("YOUR_CHAT_ID")
 
-# Инициализация клиента OpenAI
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Настройка GPT-клиента
+client = OpenAI()
 
 # Настройка логов
 logging.basicConfig(level=logging.INFO)
