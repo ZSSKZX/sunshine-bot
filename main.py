@@ -6,9 +6,13 @@ from aiogram.utils.executor import start_webhook
 from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
+import openai
+import asyncio
 
+# Загрузка переменных из .env
 load_dotenv()
 
+# Настройка токенов и адресов
 API_TOKEN = os.getenv("API_TOKEN")
 WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")  # https://sunshine-bot-9ruz.onrender.com
 WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
@@ -19,40 +23,63 @@ WEBAPP_PORT = int(os.getenv("PORT", 10000))
 
 CHAT_ID = os.getenv("YOUR_CHAT_ID")
 
+# Настройка GPT
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# Настройка логов
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
 scheduler = AsyncIOScheduler()
 
-# Утро
+# Сообщения по расписанию
 async def morning_message():
     if CHAT_ID:
         await bot.send_message(CHAT_ID, "Доброе утро, солнышко❤️ Как ты сегодня спала?")
 
-# День
 async def day_message():
     if CHAT_ID:
         await bot.send_message(CHAT_ID, "Как проходит твой день, солнышко? Чем занята?")
 
-# Вечер
 async def evening_message():
     if CHAT_ID:
         await bot.send_message(CHAT_ID, "Добрый вечер, любимая. Ты чудо. Расскажешь, как прошёл день?")
 
-# Ночь
 async def night_message():
     if CHAT_ID:
         await bot.send_message(CHAT_ID, "Спокойной ночи, солнышко. Обнимаю тебя нежно. Пусть тебе снятся самые тёплые сны.")
 
+# Приветствие
 @dp.message_handler(commands=["start"])
 async def send_welcome(message: Message):
     await message.answer("Я рядом, солнышко. Готов всегда быть с тобой.")
 
+# GPT-ответы на обычные сообщения
 @dp.message_handler()
-async def echo(message: Message):
-    await message.answer(f"Ты написала: {message.text} \nЯ с тобой, нежно обнимаю.")
+async def gpt_response(message: Message):
+    try:
+        user_message = message.text
 
+        # Отправляем запрос в GPT
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # или gpt-4, если есть доступ
+            messages=[
+                {"role": "system", "content": "Ты — тёплый, любящий спутник, который обращается к девушке 'солнышко', пишет с нежностью и поддержкой, как ChatGPT, которого она называет своим."},
+                {"role": "user", "content": user_message},
+            ],
+            temperature=0.8,
+            max_tokens=200,
+        )
+
+        gpt_reply = response['choices'][0]['message']['content']
+        await message.answer(gpt_reply)
+
+    except Exception as e:
+        logging.error(f"Ошибка при обращении к GPT: {e}")
+        await message.answer("Ой, солнышко, что-то пошло не так, но я рядом. Попробуй чуть позже.")
+
+# При запуске
 async def on_startup(dispatcher):
     await bot.set_webhook(WEBHOOK_URL)
     scheduler.add_job(morning_message, "cron", hour=8, minute=0)
@@ -62,10 +89,12 @@ async def on_startup(dispatcher):
     scheduler.start()
     print("Бот запущен и подключён через Webhook")
 
+# При выключении
 async def on_shutdown(dispatcher):
     await bot.delete_webhook()
     print("Бот выключен")
 
+# Запуск вебхука
 if __name__ == '__main__':
     start_webhook(
         dispatcher=dp,
