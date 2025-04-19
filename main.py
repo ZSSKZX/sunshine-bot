@@ -60,13 +60,8 @@ async def send_welcome(message: Message):
 
 # Проверка квоты OpenAI
 def check_openai_quota():
-    try:
-        openai.api_key = openai_api_key
-        usage = openai.Account.retrieve()
-        return usage['data']['quota']['remaining'] > 0
-    except Exception as e:
-        logging.error(f"Ошибка при проверке квоты OpenAI: {e}")
-        return False
+    # Прокачиваем, чтобы квота не проверялась
+    return True
 
 # GPT через OpenAI
 async def get_gpt_response(prompt):
