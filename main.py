@@ -67,17 +67,20 @@ def check_openai_quota():
 async def get_gpt_response(prompt):
     try:
         openai.api_key = openai_api_key
-        response = await openai.Completion.acreate(
-            engine="gpt-3.5-turbo",
-            prompt=prompt,
-            max_tokens=200,
+
+        response = await openai.ChatCompletion.acreate(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Ты добрый, любящий спутник, который всегда отвечает тепло, поддерживающе и с заботой."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=300,
             temperature=0.8
         )
-        return response.choices[0].text.strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         logging.error(f"Ошибка GPT: {e}")
-        return "Ой, солнышко, что-то пошло не так. Попробуй позже."
-
+        return "Солнышко, кажется, что-то пошло не так с ответом GPT… Но я рядом и не уйду."
 # GPT через Together.ai
 async def get_together_response(prompt):
     try:
