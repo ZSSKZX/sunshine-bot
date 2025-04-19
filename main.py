@@ -11,8 +11,8 @@ from datetime import datetime
 # Загрузка переменных окружения
 API_TOKEN = os.getenv("API_TOKEN")
 WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
-WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
-WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
+WEBHOOK_PATH = f"webhook/{API_TOKEN}"
+WEBHOOK_URL = f"{WEBHOOK_HOST.rstrip('/')}/{WEBHOOK_PATH}"
 
 WEBAPP_HOST = "0.0.0.0"
 WEBAPP_PORT = int(os.getenv("PORT", 10000))
