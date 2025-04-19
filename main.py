@@ -15,7 +15,7 @@ CHAT_ID = os.getenv("YOUR_CHAT_ID")  # Укажи здесь вручную, е�
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=API_TOKEN)
-dp = Dispatcher()
+dp = Dispatcher(bot)
 
 scheduler = AsyncIOScheduler()
 
