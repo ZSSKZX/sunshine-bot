@@ -1,6 +1,5 @@
-fastapi
-uvicorn
-requests==2.31.0
-openai==1.18.0
-apscheduler==3.10.4
-python-dotenv==1.0.1
+aiogram==2.25.2
+apscheduler
+python-dotenv
+openai>=1.0.0
+httpx
