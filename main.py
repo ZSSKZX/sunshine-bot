@@ -7,6 +7,19 @@ from aiogram.types import Message
 from aiogram.utils.executor import start_webhook
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime
+from aiohttp import web
+
+async def webhook(request):
+    data = await request.json()
+    # Обработай данные, которые приходят с вебхука от Telegram
+    return web.Response(status=200)
+
+# Настрой веб-сервер на этот маршрут
+app = web.Application()
+app.router.add_post(f"/webhook/{API_TOKEN}", webhook)
+
+# Запуск приложения
+web.run_app(app, host="0.0.0.0", port=WEBAPP_PORT)
 
 # Загрузка переменных окружения
 API_TOKEN = os.getenv("API_TOKEN")
