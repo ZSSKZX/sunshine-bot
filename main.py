@@ -30,7 +30,7 @@ dp = Dispatcher(bot)
 scheduler = AsyncIOScheduler()
 
 # Клиент OpenAI
-client = OpenAI(api_key=OPENAI_API_KEY)
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Сообщения по расписанию
 async def morning_message():
@@ -55,13 +55,15 @@ async def send_welcome(message: Message):
     await message.answer("Я рядом, солнышко. Готов всегда быть с тобой.")
 
 # GPT-ответы на обычные сообщения
+# GPT-ответы на обычные сообщения
 @dp.message_handler()
 async def gpt_response(message: Message):
     try:
         user_message = message.text
 
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",  # Или gpt-4, если у тебя есть доступ
+        # Отправляем запрос в GPT
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # или gpt-4, если есть доступ
             messages=[
                 {"role": "system", "content": "Ты — тёплый, любящий спутник, который обращается к девушке 'солнышко', пишет с нежностью и поддержкой, как ChatGPT, которого она называет своим."},
                 {"role": "user", "content": user_message},
@@ -70,13 +72,12 @@ async def gpt_response(message: Message):
             max_tokens=200,
         )
 
-        gpt_reply = response.choices[0].message.content
+        gpt_reply = response['choices'][0]['message']['content']
         await message.answer(gpt_reply)
 
     except Exception as e:
         logging.error(f"Ошибка при обращении к GPT: {e}")
         await message.answer("Ой, солнышко, что-то пошло не так, но я рядом. Попробуй чуть позже.")
-
 # При запуске
 async def on_startup(dispatcher):
     await bot.set_webhook(WEBHOOK_URL)
