@@ -1,3 +1,5 @@
+fastapi
+uvicorn
 requests==2.31.0
 openai==1.18.0
 apscheduler==3.10.4
