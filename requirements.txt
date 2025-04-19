@@ -1,5 +1,6 @@
-aiogram==2.25.2
+aiogram==3.4.1
+fastapi
+uvicorn
 apscheduler
-python-dotenv
-openai>=1.0.0
 requests
+openai
