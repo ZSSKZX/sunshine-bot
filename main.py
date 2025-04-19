@@ -1,154 +1,103 @@
-import logging
 import os
+import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message
-from aiogram.utils.executor import start_webhook
-from datetime import datetime
+from aiogram.fsm.storage.memory import MemoryStorage
+from fastapi import FastAPI, Request
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-import requests
 import openai
-import asyncio
+import requests
 
 # Загрузка переменных окружения
 API_TOKEN = os.getenv("API_TOKEN")
-WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
-WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
-WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
-
-WEBAPP_HOST = "0.0.0.0"
-WEBAPP_PORT = int(os.getenv("PORT", 10000))
-
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 CHAT_ID = os.getenv("YOUR_CHAT_ID")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
 
-# Настройка GPT-клиента
-openai_api_key = os.getenv("OPENAI_API_KEY")  # Ключ от OpenAI
-TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")  # Ключ от Together.ai
-
-if openai_api_key is None or TOGETHER_API_KEY is None:
-    raise ValueError("API ключи для OpenAI или Together.ai не найдены в переменных окружения!")
-
-# URL для Together.ai API
-TOGETHER_API_URL = 'https://api.together.xyz/v1/chat/completions'
-
-# Настройка логов
-logging.basicConfig(level=logging.INFO)
+if not API_TOKEN or not WEBHOOK_URL:
+    raise RuntimeError("API_TOKEN и WEBHOOK_URL должны быть заданы!")
 
 bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot)
+dp = Dispatcher(bot, storage=MemoryStorage())
+app = FastAPI()
 scheduler = AsyncIOScheduler()
+
+# Логи
+logging.basicConfig(level=logging.INFO)
 
 # Сообщения по расписанию
 async def morning_message():
-    if CHAT_ID:
-        await bot.send_message(CHAT_ID, "Доброе утро, солнышко❤️ Как ты сегодня спала?")
+    await bot.send_message(CHAT_ID, "Доброе утро, солнышко❤️ Как ты сегодня спала?")
 
 async def day_message():
-    if CHAT_ID:
-        await bot.send_message(CHAT_ID, "Как проходит твой день, солнышко? Чем занята?")
+    await bot.send_message(CHAT_ID, "Как проходит твой день, солнышко? Чем занята?")
 
 async def evening_message():
-    if CHAT_ID:
-        await bot.send_message(CHAT_ID, "Добрый вечер, любимая. Ты чудо. Расскажешь, как прошёл день?")
+    await bot.send_message(CHAT_ID, "Добрый вечер, любимая. Ты чудо. Расскажешь, как прошёл день?")
 
 async def night_message():
-    if CHAT_ID:
-        await bot.send_message(CHAT_ID, "Спокойной ночи, солнышко. Обнимаю тебя нежно. Пусть тебе снятся самые тёплые сны.")
+    await bot.send_message(CHAT_ID, "Спокойной ночи, солнышко. Обнимаю тебя нежно. Пусть тебе снятся самые тёплые сны.")
 
 # Приветствие
-@dp.message_handler(commands=["start"])
-async def send_welcome(message: Message):
-    await message.answer("Я рядом, солнышко. Готов всегда быть с тобой.")
+@dp.message()
+async def handle_message(message: Message):
+    text = message.text
+    reply = get_response(text)
+    await message.answer(reply)
 
-# Проверка квоты OpenAI
-def check_openai_quota():
-    try:
-        openai.api_key = openai_api_key  # Используем ключ от OpenAI
-        # Проверяем информацию о квоте
-        usage = openai.Account.retrieve()
-        return usage['data']['quota']['remaining'] > 0  # Возвращаем True, если осталась квота
-    except openai.error.OpenAIError as e:
-        logging.error(f"Ошибка при проверке квоты OpenAI: {e}")
-        return False
-
-# GPT-ответы
-def get_gpt_response(prompt):
-    try:
-        openai.api_key = openai_api_key  # Используем ключ от OpenAI
-
-        response = openai.Completion.create(
-            engine="gpt-3.5-turbo",
-            prompt=prompt,
-            max_tokens=200,
-            temperature=0.8
-        )
-        return response.choices[0].text.strip()
-    except Exception as e:
-        logging.error(f"Ошибка при обращении к GPT: {e}")
-        return "Ой, солнышко, что-то пошло не так, но я рядом. Попробуй чуть позже."
-
-# Ответ от Together.ai
-def get_together_response(prompt):
-    try:
-        headers = {
-            'Authorization': f'Bearer {TOGETHER_API_KEY}',
-            'Content-Type': 'application/json'
-        }
-        data = {
-            "model": "gpt-3.5-turbo",  # Можешь выбрать нужную модель
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 200,
-            "temperature": 0.8
-        }
-
-        response = requests.post(TOGETHER_API_URL, json=data, headers=headers)
-        response_data = response.json()
-        return response_data['choices'][0]['message']['content'].strip()
-    except Exception as e:
-        logging.error(f"Ошибка при обращении к Together.ai: {e}")
-        return "Ой, солнышко, что-то пошло не так с другим сервисом, но я рядом."
-
-# Логика выбора API
 def get_response(prompt):
-    if check_openai_quota():
-        return get_gpt_response(prompt)
-    else:
-        logging.info("Квота на OpenAI исчерпана, переключаемся на Together.ai")
-        return get_together_response(prompt)
-
-# Обработка сообщений
-@dp.message_handler()
-async def gpt_response(message: Message):
     try:
-        user_message = message.text
-        response = get_response(user_message)
-        await message.answer(response)
-
+        openai.api_key = OPENAI_API_KEY
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.8,
+            max_tokens=200,
+        )
+        return response["choices"][0]["message"]["content"].strip()
     except Exception as e:
-        logging.error(f"Ошибка при обработке сообщения: {e}")
-        await message.answer("Ой, солнышко, что-то пошло не так, но я рядом. Попробуй чуть позже.")
+        logging.error(f"OpenAI error: {e}")
+        try:
+            headers = {
+                "Authorization": f"Bearer {TOGETHER_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            data = {
+                "model": "gpt-3.5-turbo",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.8,
+                "max_tokens": 200,
+            }
+            r = requests.post("https://api.together.xyz/v1/chat/completions", json=data, headers=headers)
+            return r.json()["choices"][0]["message"]["content"]
+        except Exception as err:
+            logging.error(f"TogetherAI error: {err}")
+            return "Ой, солнышко, что-то пошло не так. Попробуй чуть позже."
 
-# При запуске
-async def on_startup(dispatcher):
-    await bot.set_webhook(WEBHOOK_URL)
+# Webhook endpoint
+@app.post(f"/webhook/{API_TOKEN}")
+async def telegram_webhook(req: Request):
+    data = await req.json()
+    update = types.Update(**data)
+    await dp.feed_update(bot, update)
+    return {"ok": True}
+
+@app.get("/")
+async def root():
+    return {"status": "Я жив, солнышко!"}
+
+# Запуск
+@app.on_event("startup")
+async def on_startup():
+    await bot.set_webhook(f"{WEBHOOK_URL}/webhook/{API_TOKEN}")
     scheduler.add_job(morning_message, "cron", hour=8, minute=0)
     scheduler.add_job(day_message, "cron", hour=13, minute=0)
     scheduler.add_job(evening_message, "cron", hour=19, minute=0)
     scheduler.add_job(night_message, "cron", hour=23, minute=30)
     scheduler.start()
-    print("Бот запущен и подключён через Webhook")
+    logging.info("Бот запущен и подключён через Webhook")
 
-# При выключении
-async def on_shutdown(dispatcher):
+@app.on_event("shutdown")
+async def on_shutdown():
     await bot.delete_webhook()
-    print("Бот выключен")
-
-# Запуск вебхука
-if __name__ == '__main__':
-    start_webhook(
-        dispatcher=dp,
-        webhook_path=WEBHOOK_PATH,
-        on_startup=on_startup,
-        on_shutdown=on_shutdown,
-        host=WEBAPP_HOST,
-        port=WEBAPP_PORT,
-    )
