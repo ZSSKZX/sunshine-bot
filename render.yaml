@@ -5,3 +5,14 @@ services:
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
+    envVars:
+      - key: API_TOKEN
+        value: ${API_TOKEN}
+      - key: YOUR_CHAT_ID
+        value: ${YOUR_CHAT_ID}
+      - key: WEBHOOK_HOST
+        value: ${WEBHOOK_HOST}
+      - key: OPENAI_API_KEY
+        value: ${OPENAI_API_KEY}
+      - key: TOGETHER_API_KEY
+        value: ${TOGETHER_API_KEY}
