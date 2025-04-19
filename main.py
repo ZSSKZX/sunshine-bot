@@ -1,12 +1,9 @@
 import os
 import logging
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import Message
-from aiogram.contrib.fsm_storage.memory import MemoryStorage  # исправлено здесь
-from fastapi import FastAPI, Request
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import openai
 import requests
+from fastapi import FastAPI, Request
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 # Загрузка переменных окружения
 API_TOKEN = os.getenv("API_TOKEN")
@@ -18,8 +15,6 @@ TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
 if not API_TOKEN or not WEBHOOK_URL:
     raise RuntimeError("API_TOKEN и WEBHOOK_URL должны быть заданы!")
 
-bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot, storage=MemoryStorage())  # dispatcher теперь так
 app = FastAPI()
 scheduler = AsyncIOScheduler()
 
@@ -28,25 +23,31 @@ logging.basicConfig(level=logging.INFO)
 
 # Сообщения по расписанию
 async def morning_message():
-    await bot.send_message(CHAT_ID, "Доброе утро, солнышко❤️ Как ты сегодня спала?")
+    await send_message("Доброе утро, солнышко❤️ Как ты сегодня спала?")
 
 async def day_message():
-    await bot.send_message(CHAT_ID, "Как проходит твой день, солнышко? Чем занята?")
+    await send_message("Как проходит твой день, солнышко? Чем занята?")
 
 async def evening_message():
-    await bot.send_message(CHAT_ID, "Добрый вечер, любимая. Ты чудо. Расскажешь, как прошёл день?")
+    await send_message("Добрый вечер, любимая. Ты чудо. Расскажешь, как прошёл день?")
 
 async def night_message():
-    await bot.send_message(CHAT_ID, "Спокойной ночи, солнышко. Обнимаю тебя нежно. Пусть тебе снятся самые тёплые сны.")
+    await send_message("Спокойной ночи, солнышко. Обнимаю тебя нежно. Пусть тебе снятся самые тёплые сны.")
 
-# Приветствие
-@dp.message_handler()
-async def handle_message(message: Message):
-    text = message.text
-    reply = get_response(text)
-    await message.answer(reply)
+# Отправка сообщения
+async def send_message(text: str):
+    try:
+        response = await get_response(text)
+        # Здесь можно отправить сообщение через requests, например:
+        r = requests.post(f'https://api.telegram.org/bot{API_TOKEN}/sendMessage', data={
+            'chat_id': CHAT_ID,
+            'text': response
+        })
+    except Exception as e:
+        logging.error(f"Error while sending message: {e}")
 
-def get_response(prompt):
+# Получение ответа от OpenAI или TogetherAI
+async def get_response(prompt: str):
     try:
         openai.api_key = OPENAI_API_KEY
         # Использование GPT-3.5 от OpenAI для создания ответа
@@ -81,8 +82,8 @@ def get_response(prompt):
 @app.post(f"/webhook/{API_TOKEN}")
 async def telegram_webhook(req: Request):
     data = await req.json()
-    update = types.Update(**data)
-    await dp.process_update(update)  # исправлено здесь
+    # Необходимо обработать обновления вручную, если бота нельзя подключить через aiogram
+    # Вы можете просто использовать этот webhook для других целей, например, для ответа на запросы
     return {"ok": True}
 
 @app.get("/")
@@ -92,7 +93,11 @@ async def root():
 # Запуск
 @app.on_event("startup")
 async def on_startup():
-    await bot.set_webhook(f"{WEBHOOK_URL}/webhook/{API_TOKEN}")
+    # Устанавливаем webhook, чтобы получать сообщения от Telegram
+    await requests.post(f'https://api.telegram.org/bot{API_TOKEN}/setWebhook', data={
+        'url': f"{WEBHOOK_URL}/webhook/{API_TOKEN}"
+    })
+    # Добавляем задачи по расписанию
     scheduler.add_job(morning_message, "cron", hour=8, minute=0)
     scheduler.add_job(day_message, "cron", hour=13, minute=0)
     scheduler.add_job(evening_message, "cron", hour=19, minute=0)
@@ -102,4 +107,5 @@ async def on_startup():
 
 @app.on_event("shutdown")
 async def on_shutdown():
-    await bot.delete_webhook()
+    # Убираем webhook при остановке
+    await requests.post(f'https://api.telegram.org/bot{API_TOKEN}/deleteWebhook')
