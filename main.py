@@ -2,7 +2,7 @@ import os
 import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.contrib.fsm_storage.memory import MemoryStorage  # исправлено здесь
 from fastapi import FastAPI, Request
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import openai
@@ -19,7 +19,7 @@ if not API_TOKEN or not WEBHOOK_URL:
     raise RuntimeError("API_TOKEN и WEBHOOK_URL должны быть заданы!")
 
 bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot, storage=MemoryStorage())
+dp = Dispatcher(bot, storage=MemoryStorage())  # dispatcher теперь так
 app = FastAPI()
 scheduler = AsyncIOScheduler()
 
@@ -40,7 +40,7 @@ async def night_message():
     await bot.send_message(CHAT_ID, "Спокойной ночи, солнышко. Обнимаю тебя нежно. Пусть тебе снятся самые тёплые сны.")
 
 # Приветствие
-@dp.message()
+@dp.message_handler()
 async def handle_message(message: Message):
     text = message.text
     reply = get_response(text)
@@ -49,6 +49,7 @@ async def handle_message(message: Message):
 def get_response(prompt):
     try:
         openai.api_key = OPENAI_API_KEY
+        # Использование GPT-3.5 от OpenAI для создания ответа
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
@@ -69,6 +70,7 @@ def get_response(prompt):
                 "temperature": 0.8,
                 "max_tokens": 200,
             }
+            # Запрос к Together AI API
             r = requests.post("https://api.together.xyz/v1/chat/completions", json=data, headers=headers)
             return r.json()["choices"][0]["message"]["content"]
         except Exception as err:
@@ -80,7 +82,7 @@ def get_response(prompt):
 async def telegram_webhook(req: Request):
     data = await req.json()
     update = types.Update(**data)
-    await dp.feed_update(bot, update)
+    await dp.process_update(update)  # исправлено здесь
     return {"ok": True}
 
 @app.get("/")
