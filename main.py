@@ -6,13 +6,15 @@ from aiogram.utils.executor import start_webhook
 from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
-from openai import OpenAI
+import openai  # Добавил импорт
+import asyncio
 
 # Загрузка переменных из .env
 load_dotenv()
 
+# Настройка токенов и адресов
 API_TOKEN = os.getenv("API_TOKEN")
-WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
+WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")  # https://sunshine-bot-9ruz.onrender.com
 WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
@@ -20,17 +22,16 @@ WEBAPP_HOST = "0.0.0.0"
 WEBAPP_PORT = int(os.getenv("PORT", 10000))
 
 CHAT_ID = os.getenv("YOUR_CHAT_ID")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Логи
+# Настройка GPT
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# Настройка логов
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
 scheduler = AsyncIOScheduler()
-
-# Клиент OpenAI
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Сообщения по расписанию
 async def morning_message():
@@ -49,12 +50,11 @@ async def night_message():
     if CHAT_ID:
         await bot.send_message(CHAT_ID, "Спокойной ночи, солнышко. Обнимаю тебя нежно. Пусть тебе снятся самые тёплые сны.")
 
-# Стартовая команда
+# Приветствие
 @dp.message_handler(commands=["start"])
 async def send_welcome(message: Message):
     await message.answer("Я рядом, солнышко. Готов всегда быть с тобой.")
 
-# GPT-ответы на обычные сообщения
 # GPT-ответы на обычные сообщения
 @dp.message_handler()
 async def gpt_response(message: Message):
@@ -78,6 +78,7 @@ async def gpt_response(message: Message):
     except Exception as e:
         logging.error(f"Ошибка при обращении к GPT: {e}")
         await message.answer("Ой, солнышко, что-то пошло не так, но я рядом. Попробуй чуть позже.")
+
 # При запуске
 async def on_startup(dispatcher):
     await bot.set_webhook(WEBHOOK_URL)
@@ -93,7 +94,7 @@ async def on_shutdown(dispatcher):
     await bot.delete_webhook()
     print("Бот выключен")
 
-# Запуск
+# Запуск вебхука
 if __name__ == '__main__':
     start_webhook(
         dispatcher=dp,
