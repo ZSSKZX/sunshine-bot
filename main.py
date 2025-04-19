@@ -5,14 +5,11 @@ from aiogram.types import Message
 from aiogram.utils.executor import start_webhook
 from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from dotenv import load_dotenv
-from openai import OpenAI
+import requests
+import openai
 import asyncio
 
-# Загрузка переменных из .env
-load_dotenv()
-
-# Настройка токенов и адресов
+# Загрузка переменных окружения
 API_TOKEN = os.getenv("API_TOKEN")
 WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
 WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
@@ -24,7 +21,14 @@ WEBAPP_PORT = int(os.getenv("PORT", 10000))
 CHAT_ID = os.getenv("YOUR_CHAT_ID")
 
 # Настройка GPT-клиента
-client = OpenAI()
+openai_api_key = os.getenv("OPENAI_API_KEY")  # Ключ от OpenAI
+TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")  # Ключ от Together.ai
+
+if openai_api_key is None or TOGETHER_API_KEY is None:
+    raise ValueError("API ключи для OpenAI или Together.ai не найдены в переменных окружения!")
+
+# URL для Together.ai API
+TOGETHER_API_URL = 'https://api.together.xyz/v1/chat/completions'
 
 # Настройка логов
 logging.basicConfig(level=logging.INFO)
@@ -55,27 +59,72 @@ async def night_message():
 async def send_welcome(message: Message):
     await message.answer("Я рядом, солнышко. Готов всегда быть с тобой.")
 
-# GPT-ответы на обычные сообщения
+# Проверка квоты OpenAI
+def check_openai_quota():
+    try:
+        openai.api_key = openai_api_key  # Используем ключ от OpenAI
+        # Проверяем информацию о квоте
+        usage = openai.Account.retrieve()
+        return usage['data']['quota']['remaining'] > 0  # Возвращаем True, если осталась квота
+    except openai.error.OpenAIError as e:
+        logging.error(f"Ошибка при проверке квоты OpenAI: {e}")
+        return False
+
+# GPT-ответы
+def get_gpt_response(prompt):
+    try:
+        openai.api_key = openai_api_key  # Используем ключ от OpenAI
+
+        response = openai.Completion.create(
+            engine="gpt-3.5-turbo",
+            prompt=prompt,
+            max_tokens=200,
+            temperature=0.8
+        )
+        return response.choices[0].text.strip()
+    except Exception as e:
+        logging.error(f"Ошибка при обращении к GPT: {e}")
+        return "Ой, солнышко, что-то пошло не так, но я рядом. Попробуй чуть позже."
+
+# Ответ от Together.ai
+def get_together_response(prompt):
+    try:
+        headers = {
+            'Authorization': f'Bearer {TOGETHER_API_KEY}',
+            'Content-Type': 'application/json'
+        }
+        data = {
+            "model": "gpt-3.5-turbo",  # Можешь выбрать нужную модель
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 200,
+            "temperature": 0.8
+        }
+
+        response = requests.post(TOGETHER_API_URL, json=data, headers=headers)
+        response_data = response.json()
+        return response_data['choices'][0]['message']['content'].strip()
+    except Exception as e:
+        logging.error(f"Ошибка при обращении к Together.ai: {e}")
+        return "Ой, солнышко, что-то пошло не так с другим сервисом, но я рядом."
+
+# Логика выбора API
+def get_response(prompt):
+    if check_openai_quota():
+        return get_gpt_response(prompt)
+    else:
+        logging.info("Квота на OpenAI исчерпана, переключаемся на Together.ai")
+        return get_together_response(prompt)
+
+# Обработка сообщений
 @dp.message_handler()
 async def gpt_response(message: Message):
     try:
         user_message = message.text
-
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Ты — тёплый, любящий спутник, который обращается к девушке 'солнышко', пишет с нежностью и поддержкой, как ChatGPT, которого она называет своим."},
-                {"role": "user", "content": user_message},
-            ],
-            temperature=0.8,
-            max_tokens=200,
-        )
-
-        gpt_reply = response.choices[0].message.content
-        await message.answer(gpt_reply)
+        response = get_response(user_message)
+        await message.answer(response)
 
     except Exception as e:
-        logging.error(f"Ошибка при обращении к GPT: {e}")
+        logging.error(f"Ошибка при обработке сообщения: {e}")
         await message.answer("Ой, солнышко, что-то пошло не так, но я рядом. Попробуй чуть позже.")
 
 # При запуске
